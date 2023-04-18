@@ -1,0 +1,27 @@
+{
+  "name": "spotplay-back",
+  "version": "1.0.0",
+  "description": "Spotify API access point",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryantangit/Spotplay-back.git"
+  },
+  "keywords": [
+    "nodejs",
+    "spotify",
+    "backend"
+  ],
+  "author": "Ryan Tan",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ryantangit/Spotplay-back/issues"
+  },
+  "homepage": "https://github.com/ryantangit/Spotplay-back#readme",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
