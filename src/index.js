@@ -4,10 +4,7 @@ require('dotenv').config()
 //Creation of express object
 const app = express();
 
-app.get('/', (req, res) => {
-	res.send('hello world')
-});
-
+//Login and authenticate in Spotify
 app.get('/login', (req, res)=> {
 	const scope = "user-top-read";
 	const state = generateRandomString(16);
@@ -21,6 +18,9 @@ app.get('/login', (req, res)=> {
 	res.redirect(authUrl + authSearchParam.toString());
 });
 
+app.get('/callback', (req, res) => {
+	res.send("hello world");
+});
 
 const port = 3000;
 app.listen(port, ()=>{
