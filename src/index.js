@@ -1,8 +1,18 @@
 const express = require('express');
+const {MongoClient, ServerApiVersion} = require("mongodb");
 require('dotenv').config()
-
 //Creation of express object
 const app = express();
+
+//Creation of MONGOClient object
+const mongoURI = `mongodb+srv://rtan:${process.env.MONGODB_PASSWORD}@cluster0.zlgkjb8.mongodb.net/?retryWrites=true&w=majority`;
+const mongoClient = new MongoClient(mongoURI, {
+	serverApi:{
+		version: ServerApiVersion.v1,
+		strict: true,
+		deprecationErrors: true
+	}
+});
 
 //TODO: Not scalable at the moment. Will have to use a database to store for each user
 let accessToken = "";
@@ -10,7 +20,7 @@ let refreshToken = "";
 
 //Login and authenticate in Spotify
 app.get('/login', (req, res)=> {
-	const scope = "user-top-read";
+	const scope = "user-top-read user-read-private user-read-email";
 	const state = generateRandomString(16);
 	const authUrl = "https://accounts.spotify.com/authorize?";
 	const authSearchParam = new URLSearchParams();
@@ -37,10 +47,14 @@ app.get('/callback', async (req, res) => {
 	tokenBody.append("redirect_uri", process.env.SPOTIFY_REDIRECT_URI);
 	tokenBody.append("grant_type", "authorization_code");
 	const authResponse = await fetch(tokenUrl, {method: "POST", headers: tokenHeaders, body: tokenBody});
-	const authData = await authResponse.json();
+    const authData = await authResponse.json();
+
+	//TODO: convert this into mongoDb storing access/refresh
+	//use spotify uuid as the key
 	accessToken = authData.access_token;
 	refreshToken = authData.refresh_token;
 	res.redirect("/topfive");
+
 });
 
 //Testing getting top five albums
