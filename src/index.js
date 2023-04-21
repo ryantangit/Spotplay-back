@@ -13,10 +13,8 @@ const mongoClient = new MongoClient(mongoURI, {
 		deprecationErrors: true
 	}
 });
-
-//TODO: Not scalable at the moment. Will have to use a database to store for each user
-let accessToken = "";
-let refreshToken = "";
+mongoClient.connect();
+console.log("Connected to MongoDB");
 
 //Login and authenticate in Spotify
 app.get('/login', (req, res)=> {
@@ -32,8 +30,11 @@ app.get('/login', (req, res)=> {
 	res.redirect(authUrl + authSearchParam.toString());
 });
 
+//TODO store front-end url as the state for redirect
 //Callback after Spotify authentication
 app.get('/callback', async (req, res) => {
+
+	//Retrieve access token and refresh token after receiving the authentication token
 	const code = req.query.code || null;
 	const state = req.query.code || null;
 	if (state == null){
@@ -49,14 +50,26 @@ app.get('/callback', async (req, res) => {
 	const authResponse = await fetch(tokenUrl, {method: "POST", headers: tokenHeaders, body: tokenBody});
     const authData = await authResponse.json();
 
-	//TODO: convert this into mongoDb storing access/refresh
-	//use spotify uuid as the key
-	accessToken = authData.access_token;
-	refreshToken = authData.refresh_token;
-	res.redirect("/topfive");
-
+	//use spotify.UUID as the key to the MongoDB 
+	const UUIDUri = "https://api.spotify.com/v1/me";
+	const UUIDHeaders = new Headers();
+	UUIDHeaders.append("Authorization", "Bearer " + authData.access_token);
+	const UUIDResponse = await fetch(UUIDUri, {method: "GET", headers: UUIDHeaders});
+	const UUIDData = await UUIDResponse.json();
+	const spotifyDatabase = mongoClient.db("Spotplay-back");
+	const UUIDCollection = spotifyDatabase.collection("UUID");
+	const UUIDQuery = {UUID: UUIDData.id}; 
+	const UUIDUpdate = {$set:{
+		accessToken: authData.access_token,
+		refreshToken: authData.refresh_token,
+		expire: authData.expires_in
+	}}
+	const UUIDOption = {upsert: true};
+	await UUIDCollection.updateOne(UUIDQuery, UUIDUpdate, UUIDOption);
+	res.json({UUID: UUIDData.id});
 });
 
+//TODO middleware, take uuid as parameter, verify, access, probably can test with curl
 //Testing getting top five albums
 app.get("/topfive", async(req, res)=>{
 	let trackUrl = "https://api.spotify.com/v1/me/top/tracks?";
