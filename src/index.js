@@ -62,7 +62,7 @@ app.get('/callback', async (req, res) => {
 	const UUIDUpdate = {$set:{
 		accessToken: authData.access_token,
 		refreshToken: authData.refresh_token,
-		expire: authData.expires_in
+		expire: Date.now() + authData.expires_in
 	}}
 	const UUIDOption = {upsert: true};
 	await UUIDCollection.updateOne(UUIDQuery, UUIDUpdate, UUIDOption);
@@ -71,14 +71,15 @@ app.get('/callback', async (req, res) => {
 
 //TODO middleware, take uuid as parameter, verify, access, probably can test with curl
 //Testing getting top five albums
-app.get("/topfive", async(req, res)=>{
+app.get("/topfive/:uuid", uuidProcess, async(req, res)=>{
+	console.log("made it here")
 	let trackUrl = "https://api.spotify.com/v1/me/top/tracks?";
 	let topFiveHeaders = new Headers();
-	topFiveHeaders.append("Authorization", "Bearer " + accessToken);
+	topFiveHeaders.append("Authorization", req.headers.Authorization);
 	let topFiveParams = new URLSearchParams();
 	topFiveParams.append('limit', 5);
-
-	let response = await fetch(trackUrl + topFiveParams, {method: "GET", headers: topFiveHeaders});
+	console.log(trackUrl + topFiveParams.toString());
+	let response = await fetch(trackUrl + topFiveParams.toString(), {method: "GET", headers: topFiveHeaders});
 	let data = await response.json();
 	res.send(data);
 });
@@ -93,6 +94,27 @@ const port = 3000;
 app.listen(port, ()=>{
 	console.log(`Server is listening on port ${port}`);
 });
+
+//Middleware Functions
+async function uuidProcess(req, res, next) {
+	const tokens = await retrieveTokens(req.params.uuid);
+	//TODO Check if token is expired
+	if (tokens.accessToken == null){
+		res.redirect("/error")
+	}
+	req.headers.Authorization = `Bearer ${tokens.accessToken}`
+
+	next();
+}
+
+//MongoDB Function
+async function retrieveTokens(uuid){
+	const spotifyDatabase = mongoClient.db("Spotplay-back");
+	const UUIDCollection = spotifyDatabase.collection("UUID");
+	const UUIDFoundOne = await UUIDCollection.findOne({UUID: `${uuid}`});
+	return UUIDFoundOne;	
+	
+}
 
 //Helper Functions
 function generateRandomString(length) {
