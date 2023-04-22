@@ -1,6 +1,7 @@
 const express = require('express');
 const {MongoClient, ServerApiVersion} = require("mongodb");
-require('dotenv').config()
+const path = require("node:path");
+require('dotenv').config({path: __dirname+"/.env"})
 //Creation of express object
 const app = express();
 
@@ -43,42 +44,32 @@ app.get('/callback', async (req, res) => {
     let tokenHeaders = new Headers();
 	tokenHeaders.append("Authorization", "Basic " + (new Buffer.from(process.env.SPOTIFY_CLIENT_ID + ":" + process.env.SPOTIFY_CLIENT_SECRET).toString("base64")));
 	let tokenUrl = "https://accounts.spotify.com/api/token"
-	let tokenBody = new URLSearchParams();
-	tokenBody.append("code", code);
-	tokenBody.append("redirect_uri", process.env.SPOTIFY_REDIRECT_URI);
-	tokenBody.append("grant_type", "authorization_code");
-	const authResponse = await fetch(tokenUrl, {method: "POST", headers: tokenHeaders, body: tokenBody});
+	let tokenParams = new URLSearchParams();
+	tokenParams.append("code", code);
+	tokenParams.append("redirect_uri", process.env.SPOTIFY_REDIRECT_URI);
+	tokenParams.append("grant_type", "authorization_code");
+	const authResponse = await fetch(tokenUrl, {method: "POST", headers: tokenHeaders, body: tokenParams});
     const authData = await authResponse.json();
 
 	//use spotify.UUID as the key to the MongoDB 
-	const UUIDUri = "https://api.spotify.com/v1/me";
-	const UUIDHeaders = new Headers();
-	UUIDHeaders.append("Authorization", "Bearer " + authData.access_token);
-	const UUIDResponse = await fetch(UUIDUri, {method: "GET", headers: UUIDHeaders});
-	const UUIDData = await UUIDResponse.json();
-	const spotifyDatabase = mongoClient.db("Spotplay-back");
-	const UUIDCollection = spotifyDatabase.collection("UUID");
-	const UUIDQuery = {UUID: UUIDData.id}; 
-	const UUIDUpdate = {$set:{
-		accessToken: authData.access_token,
-		refreshToken: authData.refresh_token,
-		expire: Date.now() + authData.expires_in
-	}}
-	const UUIDOption = {upsert: true};
-	await UUIDCollection.updateOne(UUIDQuery, UUIDUpdate, UUIDOption);
-	res.json({UUID: UUIDData.id});
+	const uuidUri = "https://api.spotify.com/v1/me";
+	const uuidHeaders = new Headers();
+	uuidHeaders.append("Authorization", "Bearer " + authData.access_token);
+	const uuidResponse = await fetch(uuidUri, {method: "GET", headers: uuidHeaders});
+	const uuidData = await uuidResponse.json();
+	
+	await storingTokens(uuidData.id, authData.access_token, authData.refresh_token, authData.expires_in);
+	res.json({UUID: uuidData.id});
 });
 
-//TODO middleware, take uuid as parameter, verify, access, probably can test with curl
+//TODO Clean up the data that gets sent, refer to SpotifyAPI for more information
 //Testing getting top five albums
-app.get("/topfive/:uuid", uuidProcess, async(req, res)=>{
-	console.log("made it here")
+app.get("/topfive/:uuid", uuidTokenProcess, async(req, res)=>{
 	let trackUrl = "https://api.spotify.com/v1/me/top/tracks?";
 	let topFiveHeaders = new Headers();
 	topFiveHeaders.append("Authorization", req.headers.Authorization);
 	let topFiveParams = new URLSearchParams();
 	topFiveParams.append('limit', 5);
-	console.log(trackUrl + topFiveParams.toString());
 	let response = await fetch(trackUrl + topFiveParams.toString(), {method: "GET", headers: topFiveHeaders});
 	let data = await response.json();
 	res.send(data);
@@ -96,27 +87,58 @@ app.listen(port, ()=>{
 });
 
 //Middleware Functions
-async function uuidProcess(req, res, next) {
+async function uuidTokenProcess(req, res, next) {
 	const tokens = await retrieveTokens(req.params.uuid);
-	//TODO Check if token is expired
+	let accessToken = tokens.accessToken
 	if (tokens.accessToken == null){
 		res.redirect("/error")
 	}
-	req.headers.Authorization = `Bearer ${tokens.accessToken}`
-
+	//If the MongoDB password is outdated, request a new one, then put in the database
+	if (tokens.expire <= Date.now()){
+		const refreshData = await requestNewAccessToken(tokens.refreshToken);
+		accessToken = refreshData.access_token;
+		storingTokens(req.params.uuid, accessToken, tokens.refreshToken, refreshData.expires_in)
+	}
+	req.headers.Authorization = `Bearer ${accessToken}`
 	next();
 }
 
-//MongoDB Function
+//MongoDB Helper Functions ------------------------------------------------------------------------------
+async function storingTokens(uuid, accessToken, refreshToken, duration){	
+	const spotifyDatabase = mongoClient.db("Spotplay-back");
+	const uuidCollection = spotifyDatabase.collection("UUID");
+	const uuidQuery = {UUID: uuid}; 
+	const uuidUpdate = {$set:{
+		accessToken: accessToken,
+		refreshToken: refreshToken,
+		expire: Date.now() + (duration * 1000)
+	}}
+	const uuidOption = {upsert: true};
+	await uuidCollection.updateOne(uuidQuery, uuidUpdate, uuidOption);
+}
 async function retrieveTokens(uuid){
 	const spotifyDatabase = mongoClient.db("Spotplay-back");
-	const UUIDCollection = spotifyDatabase.collection("UUID");
-	const UUIDFoundOne = await UUIDCollection.findOne({UUID: `${uuid}`});
-	return UUIDFoundOne;	
-	
+	const uuidCollection = spotifyDatabase.collection("UUID");
+	const uuidFoundOne = await uuidCollection.findOne({UUID: `${uuid}`});
+	return uuidFoundOne;		
 }
+//MongoDB Helper Functions END---------------------------------------------------------------------------
 
-//Helper Functions
+//Spotify Helper Functions ------------------------------------------------------------------------------
+async function requestNewAccessToken(refreshToken){
+	let tokenHeaders = new Headers();
+	tokenHeaders.append("Authorization", "Basic " + (new Buffer.from(process.env.SPOTIFY_CLIENT_ID + ":" + process.env.SPOTIFY_CLIENT_SECRET).toString("base64")));
+	let tokenUrl = "https://accounts.spotify.com/api/token"
+	let tokenParams = new URLSearchParams();
+	tokenParams.append("refresh_token", refreshToken);
+	tokenParams.append("grant_type", "refresh_token");
+	const refreshResponse = await fetch(tokenUrl, {method: "POST", headers: tokenHeaders, body: tokenParams});
+	const refreshData = await refreshResponse.json();
+	return refreshData;
+}
+//Spotify Helper Functions END---------------------------------------------------------------------------
+
+//Utility Functions
 function generateRandomString(length) {
   let text = '';
   let possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
