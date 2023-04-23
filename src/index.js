@@ -72,8 +72,9 @@ app.get("/topfive/:uuid", uuidTokenProcess, async(req, res)=>{
 	topFiveParams.append('limit', 5);
 	let response = await fetch(trackUrl + topFiveParams.toString(), {method: "GET", headers: topFiveHeaders});
 	let data = await response.json();
-	res.send(data);
+	res.json(extractNTopTrackEntries(data, 5));
 });
+
 
 //Error
 app.get('/error', (req, res)=> {
@@ -147,4 +148,15 @@ function generateRandomString(length) {
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   }
   return text;
+}
+
+function extractNTopTrackEntries(trackData, n){
+	const topFiveArray = [];
+	for (let i = 0; i < n; i++){
+		const trackName = trackData.items[i].name;
+		const trackArtists = trackData.items[i].artists;
+		const trackAlbum = trackData.items[i].album;
+		topFiveArray.push({name: trackName, artists: trackArtists, album: trackAlbum});
+	}
+	return JSON.stringify(topFiveArray);
 }
