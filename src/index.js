@@ -59,12 +59,13 @@ app.get('/callback', async (req, res) => {
 	const uuidData = await uuidResponse.json();
 	
 	await storingTokens(uuidData.id, authData.access_token, authData.refresh_token, authData.expires_in);
-	res.json({UUID: uuidData.id});
+	res.redirect("http://localhost:3001/User");
+	//res.json({UUID: uuidData.id});
 });
 
 //TODO Clean up the data that gets sent, refer to SpotifyAPI for more information
 //Testing getting top five albums
-app.get("/topfive/:uuid", uuidTokenProcess, async(req, res)=>{
+app.get("/topfivetracks/:uuid", uuidTokenProcess, async(req, res)=>{
 	let trackUrl = "https://api.spotify.com/v1/me/top/tracks?";
 	let topFiveHeaders = new Headers();
 	topFiveHeaders.append("Authorization", req.headers.Authorization);
