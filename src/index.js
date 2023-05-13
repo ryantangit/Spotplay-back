@@ -59,8 +59,7 @@ app.get('/callback', async (req, res) => {
 	const uuidData = await uuidResponse.json();
 	
 	await storingTokens(uuidData.id, authData.access_token, authData.refresh_token, authData.expires_in);
-	res.redirect("http://localhost:3001/User");
-	//res.json({UUID: uuidData.id});
+	res.redirect(`http://localhost:3001/User/${uuidData.id}`);
 });
 
 //TODO Clean up the data that gets sent, refer to SpotifyAPI for more information
