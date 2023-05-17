@@ -1,9 +1,11 @@
 const express = require('express');
 const {MongoClient, ServerApiVersion} = require("mongodb");
 const path = require("node:path");
+const cors = require("cors");
 require('dotenv').config({path: __dirname+"/.env"})
 //Creation of express object
 const app = express();
+app.use(cors({origin: 'http://localhost:3001'}));
 
 //Creation of MONGOClient object
 const mongoURI = `mongodb+srv://rtan:${process.env.MONGODB_PASSWORD}@cluster0.zlgkjb8.mongodb.net/?retryWrites=true&w=majority`;
@@ -59,7 +61,7 @@ app.get('/callback', async (req, res) => {
 	const uuidData = await uuidResponse.json();
 	
 	await storingTokens(uuidData.id, authData.access_token, authData.refresh_token, authData.expires_in);
-	res.redirect(`http://localhost:3001/User/${uuidData.id}`);
+	res.redirect(`http://localhost:3001/User?uuid=${uuidData.id}`);
 });
 
 //TODO Clean up the data that gets sent, refer to SpotifyAPI for more information
