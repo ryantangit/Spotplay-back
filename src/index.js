@@ -74,6 +74,7 @@ app.get("/topfivetracks/:uuid", uuidTokenProcess, async(req, res)=>{
 	topFiveParams.append('limit', 5);
 	let response = await fetch(trackUrl + topFiveParams.toString(), {method: "GET", headers: topFiveHeaders});
 	let data = await response.json();
+	console.log(data);
 	res.json(extractNTopTrackEntries(data, 5));
 });
 
